@@ -965,6 +965,40 @@ public class Sistema {
 			}
 			System.out.println("ID nao encontrado");
 		}
+
+		public class Shell extends Thread{
+
+			public void run(){
+				Scanner scan = new Scanner(System.in);
+				int aux;
+				while(true){
+					aux = scan.nextInt();
+					
+				}
+
+			}
+
+		}
+
+		public class Console extends Thread{
+			private List<Integer> lista;
+
+			public Console(){
+				lista = new ArrayList<>();
+			}
+
+			public void run(){
+				int aux = 0;
+				while(true){
+					if (aux != 1) {
+						//rotina de tratamento de da informação
+					}
+					
+				}
+			}
+
+		}
+
 	}
     // -------------------------------------------------------------------------------------------------------
 	// -------------------------------------------------------------------------------------------------------

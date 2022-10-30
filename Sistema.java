@@ -8,9 +8,9 @@
 // Funcionalidades de carga, execução e dump de memória
 
 import java.util.*;
+import java.util.concurrent.Semaphore;
 
 public class Sistema {
-	
 	// -------------------------------------------------------------------------------------------------------
 	// --------------------- H A R D W A R E - definicoes de HW ---------------------------------------------- 
 
@@ -72,7 +72,7 @@ public class Sistema {
 		noInterrupt, intEnderecoInvalido, intInstrucaoInvalida, intOverflow, intSTOP, timeOut;
 	}
 
-	public class CPU {
+	public class CPU extends Thread{
 		private int maxInt; // valores maximo e minimo para inteiros nesta cpu
 		private int minInt;
 							// característica do processador: contexto da CPU ...
@@ -94,6 +94,7 @@ public class Sistema {
 		private Table table;
 		private int timer;
 		private int delta;
+		boolean idle;
 						
 		public CPU(Memory _mem, InterruptHandling _ih, SysCallHandling _sysCall, boolean _debug) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
 			maxInt =  32767;        // capacidade de representacao modelada
@@ -106,6 +107,7 @@ public class Sistema {
 			debug =  _debug;        // se true, print da instrucao em execucao
 			timer = 0;
 			delta = 5;
+			idle = true;
 		}
 		
 		private boolean legal(int e) {                             // todo acesso a memoria tem que ser verificado
@@ -127,236 +129,240 @@ public class Sistema {
 		}
 		
 		public void setContext(int _pc, Table _table) {  // no futuro esta funcao vai ter que ser
+			idle = false;
 			pc = _pc;                                              
 			irpt = Interrupts.noInterrupt;                         
 			table = _table;
 		}
 		
-		public void run() { 		// execucao da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado			
-			while (true) { 			// ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
-			   // --------------------------------------------------------------------------------------------------
-			   // FETCH
-				if (legal(pc)) { 	// pc valido
-					ir = m[memoryManager.getPhysicalAdress(pc, table)]; 	// <<<<<<<<<<<<           busca posicao da memoria apontada por pc, guarda em ir
-					if (debug) { System.out.print("                               pc: "+memoryManager.getPhysicalAdress(pc, table)+"       exec: ");  mem.dump(ir); }
-			   // --------------------------------------------------------------------------------------------------
-			   // EXECUTA INSTRUCAO NO ir
-					switch (ir.opc) {   // conforme o opcode (código de operação) executa
+		public void run() { 		// execucao da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado	
+			while (true) {
+				try {
+					semaCPU.acquire();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 
-					// Instrucoes de Busca e Armazenamento em Memoria
-					    case LDI: // Rd <= k
-							reg[ir.r1] = ir.p;
-							pc++;
-							break;
-
-						case LDD: // Rd <= [A]
-						    if (legal(ir.p)) {
-							   reg[ir.r1] = m[ir.p].p;
-							   pc++;
-						    } else {
-								irpt = Interrupts.intEnderecoInvalido;
-							}
-						    break;
-
-						case LDX: // RD <= [RS] // NOVA
-							if (legal(reg[ir.r2])) {
-								reg[ir.r1] = m[reg[ir.r2]].p;
-								pc++;
-							} else {
-								irpt = Interrupts.intEnderecoInvalido;
-							}
-							break;
-
-						case STD: // [A] <= Rs
-						    if (legal(ir.p)) {
-							    m[ir.p].opc = Opcode.DATA;
-							    m[ir.p].p = reg[ir.r1];
-							    pc++;
-							} else {
-								irpt = Interrupts.intEnderecoInvalido;
-							}
-						    break;
-
-						case STX: // [Rd] <= Rs
-						    if (legal(reg[ir.r1])) {
-							    m[reg[ir.r1]].opc = Opcode.DATA;      
-							    m[reg[ir.r1]].p = reg[ir.r2];          
-								pc++;
-							} else {
-								irpt = Interrupts.intEnderecoInvalido;
-							}
-							break;
-						
-						case MOVE: // RD <= RS
-							reg[ir.r1] = reg[ir.r2];
-							pc++;
-							break;	
-							
-					// Instrucoes Aritmeticas
-						case ADD: // Rd <= Rd + Rs
-							reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
-							testOverflow(reg[ir.r1]);
-							pc++;
-							break;
-
-						case ADDI: // Rd <= Rd + k
-							reg[ir.r1] = reg[ir.r1] + ir.p;
-							testOverflow(reg[ir.r1]);
-							pc++;
-							break;
-
-						case SUB: // Rd <= Rd - Rs
-							reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
-							testOverflow(reg[ir.r1]);
-							pc++;
-							break;
-
-						case SUBI: // RD <= RD - k // NOVA
-							reg[ir.r1] = reg[ir.r1] - ir.p;
-							testOverflow(reg[ir.r1]);
-							pc++;
-							break;
-
-						case MULT: // Rd <= Rd * Rs
-							reg[ir.r1] = reg[ir.r1] * reg[ir.r2];  
-							testOverflow(reg[ir.r1]);
-							pc++;
-							break;
-
-					// Instrucoes JUMP
-						case JMP: // PC <= k
-							pc = ir.p;
-							break;
-						
-						case JMPIG: // If Rc > 0 Then PC <= Rs Else PC <= PC +1
-							if (reg[ir.r2] > 0) {
-								pc = reg[ir.r1];
-							} else {
-								pc++;
-							}
-							break;
-
-						case JMPIGK: // If RC > 0 then PC <= k else PC++
-							if (reg[ir.r2] > 0) {
-								pc = ir.p;
-							} else {
-								pc++;
-							}
-							break;
-	
-						case JMPILK: // If RC < 0 then PC <= k else PC++
-							 if (reg[ir.r2] < 0) {
-								pc = ir.p;
-							} else {
-								pc++;
-							}
-							break;
-	
-						case JMPIEK: // If RC = 0 then PC <= k else PC++
-								if (reg[ir.r2] == 0) {
-									pc = ir.p;
-								} else {
-									pc++;
-								}
-							break;
-	
-	
-						case JMPIL: // if Rc < 0 then PC <= Rs Else PC <= PC +1
-								 if (reg[ir.r2] < 0) {
-									pc = reg[ir.r1];
-								} else {
-									pc++;
-								}
-							break;
+				if (!idle) {
+					while (true) { 			// ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
+					   // --------------------------------------------------------------------------------------------------
+					   // FETCH
+						if (legal(pc)) { 	// pc valido
+							ir = m[memoryManager.getPhysicalAdress(pc, table)]; 	// <<<<<<<<<<<<           busca posicao da memoria apontada por pc, guarda em ir
+							if (debug) { System.out.print("                               pc: "+memoryManager.getPhysicalAdress(pc, table)+"       exec: ");  mem.dump(ir); }
+					   // --------------------------------------------------------------------------------------------------
+					   // EXECUTA INSTRUCAO NO ir
+							switch (ir.opc) {   // conforme o opcode (código de operação) executa
 		
-						case JMPIE: // If Rc = 0 Then PC <= Rs Else PC <= PC +1
-								 if (reg[ir.r2] == 0) {
-									pc = reg[ir.r1];
-								} else {
+							// Instrucoes de Busca e Armazenamento em Memoria
+								case LDI: // Rd <= k
+									reg[ir.r1] = ir.p;
 									pc++;
-								}
-							break; 
-	
-						case JMPIM: // PC <= [A]
-								 pc = m[ir.p].p;
-							 break; 
-	
-						case JMPIGM: // If RC > 0 then PC <= [A] else PC++
-								 if (reg[ir.r2] > 0) {
-									pc = m[ir.p].p;
-								} else {
+									break;
+		
+								case LDD: // Rd <= [A]
+									if (legal(ir.p)) {
+									   reg[ir.r1] = m[ir.p].p;
+									   pc++;
+									} else {
+										irpt = Interrupts.intEnderecoInvalido;
+									}
+									break;
+		
+								case LDX: // RD <= [RS] // NOVA
+									if (legal(reg[ir.r2])) {
+										reg[ir.r1] = m[reg[ir.r2]].p;
+										pc++;
+									} else {
+										irpt = Interrupts.intEnderecoInvalido;
+									}
+									break;
+		
+								case STD: // [A] <= Rs
+									if (legal(ir.p)) {
+										m[ir.p].opc = Opcode.DATA;
+										m[ir.p].p = reg[ir.r1];
+										pc++;
+									} else {
+										irpt = Interrupts.intEnderecoInvalido;
+									}
+									break;
+		
+								case STX: // [Rd] <= Rs
+									if (legal(reg[ir.r1])) {
+										m[reg[ir.r1]].opc = Opcode.DATA;      
+										m[reg[ir.r1]].p = reg[ir.r2];          
+										pc++;
+									} else {
+										irpt = Interrupts.intEnderecoInvalido;
+									}
+									break;
+								
+								case MOVE: // RD <= RS
+									reg[ir.r1] = reg[ir.r2];
 									pc++;
-								}
-							 break;  
-	
-						case JMPILM: // If RC < 0 then PC <= k else PC++
-								 if (reg[ir.r2] < 0) {
-									pc = m[ir.p].p;
-								} else {
+									break;	
+									
+							// Instrucoes Aritmeticas
+								case ADD: // Rd <= Rd + Rs
+									reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+									testOverflow(reg[ir.r1]);
 									pc++;
-								}
-							 break; 
-	
-						case JMPIEM: // If RC = 0 then PC <= k else PC++
-								if (reg[ir.r2] == 0) {
-									pc = m[ir.p].p;
-								} else {
+									break;
+		
+								case ADDI: // Rd <= Rd + k
+									reg[ir.r1] = reg[ir.r1] + ir.p;
+									testOverflow(reg[ir.r1]);
 									pc++;
-								}
-							 break; 
-	
-						case JMPIGT: // If RS>RC then PC <= k else PC++
-								if (reg[ir.r1] > reg[ir.r2]) {
+									break;
+		
+								case SUB: // Rd <= Rd - Rs
+									reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+									testOverflow(reg[ir.r1]);
+									pc++;
+									break;
+		
+								case SUBI: // RD <= RD - k // NOVA
+									reg[ir.r1] = reg[ir.r1] - ir.p;
+									testOverflow(reg[ir.r1]);
+									pc++;
+									break;
+		
+								case MULT: // Rd <= Rd * Rs
+									reg[ir.r1] = reg[ir.r1] * reg[ir.r2];  
+									testOverflow(reg[ir.r1]);
+									pc++;
+									break;
+		
+							// Instrucoes JUMP
+								case JMP: // PC <= k
 									pc = ir.p;
-								} else {
-									pc++;
-								}
-							 break; 
-
-					// outras
-						case STOP: // por enquanto, para execucao
-							irpt = Interrupts.intSTOP;
-							break;
-
-						case DATA:
-							irpt = Interrupts.intInstrucaoInvalida;
-							break;
-
-					// Chamada de sistema
-					    case TRAP:
-						     sysCall.handle(table);            // <<<<< aqui desvia para rotina de chamada de sistema, no momento so temos IO
-							 pc++;
-						     break;
-
-						case SHMALLOC:
-							sysCall.handle(table);
-							pc++;
-							break;
-
-						case SHMREF:
-							sysCall.handle(table);
-							pc++;
-							break;
-
-					// Inexistente
-						default:
-							irpt = Interrupts.intInstrucaoInvalida;
-							break;
-					}
-				} else {
-					irpt = Interrupts.intEnderecoInvalido;
+									break;
+								
+								case JMPIG: // If Rc > 0 Then PC <= Rs Else PC <= PC +1
+									if (reg[ir.r2] > 0) {
+										pc = reg[ir.r1];
+									} else {
+										pc++;
+									}
+									break;
+		
+								case JMPIGK: // If RC > 0 then PC <= k else PC++
+									if (reg[ir.r2] > 0) {
+										pc = ir.p;
+									} else {
+										pc++;
+									}
+									break;
+			
+								case JMPILK: // If RC < 0 then PC <= k else PC++
+									 if (reg[ir.r2] < 0) {
+										pc = ir.p;
+									} else {
+										pc++;
+									}
+									break;
+			
+								case JMPIEK: // If RC = 0 then PC <= k else PC++
+										if (reg[ir.r2] == 0) {
+											pc = ir.p;
+										} else {
+											pc++;
+										}
+									break;
+			
+			
+								case JMPIL: // if Rc < 0 then PC <= Rs Else PC <= PC +1
+										 if (reg[ir.r2] < 0) {
+											pc = reg[ir.r1];
+										} else {
+											pc++;
+										}
+									break;
+				
+								case JMPIE: // If Rc = 0 Then PC <= Rs Else PC <= PC +1
+										 if (reg[ir.r2] == 0) {
+											pc = reg[ir.r1];
+										} else {
+											pc++;
+										}
+									break; 
+			
+								case JMPIM: // PC <= [A]
+										 pc = m[ir.p].p;
+									 break; 
+			
+								case JMPIGM: // If RC > 0 then PC <= [A] else PC++
+										 if (reg[ir.r2] > 0) {
+											pc = m[ir.p].p;
+										} else {
+											pc++;
+										}
+									 break;  
+			
+								case JMPILM: // If RC < 0 then PC <= k else PC++
+										 if (reg[ir.r2] < 0) {
+											pc = m[ir.p].p;
+										} else {
+											pc++;
+										}
+									 break; 
+			
+								case JMPIEM: // If RC = 0 then PC <= k else PC++
+										if (reg[ir.r2] == 0) {
+											pc = m[ir.p].p;
+										} else {
+											pc++;
+										}
+									 break; 
+			
+								case JMPIGT: // If RS>RC then PC <= k else PC++
+										if (reg[ir.r1] > reg[ir.r2]) {
+											pc = ir.p;
+										} else {
+											pc++;
+										}
+									 break; 
+		
+							// outras
+								case STOP: // por enquanto, para execucao
+									irpt = Interrupts.intSTOP;
+									break;
+		
+								case DATA:
+									irpt = Interrupts.intInstrucaoInvalida;
+									break;
+		
+							// Chamada de sistema
+								case TRAP:
+									 sysCall.handle(table);            // <<<<< aqui desvia para rotina de chamada de sistema, no momento so temos IO
+									 pc++;
+									 break;
+		
+							// Inexistente
+								default:
+									irpt = Interrupts.intInstrucaoInvalida;
+									break;
+							}
+						} else {
+							irpt = Interrupts.intEnderecoInvalido;
+						}
+						timer++;
+						if (irpt != null && timer % delta == 0) {
+							irpt = Interrupts.timeOut;
+						}
+					   // --------------------------------------------------------------------------------------------------
+					   // VERIFICA INTERRUPÇÃO !!! - TERCEIRA FASE DO CICLO DE INSTRUÇÕES
+						if (!(irpt == Interrupts.noInterrupt)) {   // existe interrupção
+							ih.handle(irpt,pc,reg);                       // desvia para rotina de tratamento
+							break; // break sai do loop da cpu
+						}
+					}  // FIM DO CICLO DE UMA INSTRUÇÃO
 				}
-				timer++;
-				if (irpt != null && timer % delta == 0) {
-					irpt = Interrupts.timeOut;
-				}
-			   // --------------------------------------------------------------------------------------------------
-			   // VERIFICA INTERRUPÇÃO !!! - TERCEIRA FASE DO CICLO DE INSTRUÇÕES
-				if (!(irpt == Interrupts.noInterrupt)) {   // existe interrupção
-					ih.handle(irpt,pc,reg);                       // desvia para rotina de tratamento
-					break; // break sai do loop da cpu
-				}
-			}  // FIM DO CICLO DE UMA INSTRUÇÃO
+				idle = true;
+				semaCPU.release();
+			}		
 		}      
 	}
     // ------------------ C P U - fim ------------------------------------------------------------------------
@@ -447,20 +453,6 @@ public class Sistema {
 			}
 			if (vm.cpu.reg[8] == 2) {
 				System.out.println(vm.cpu.reg[9]);
-			}
-			if (vm.cpu.reg[8] == 3) {
-				Table newTable = memoryManager.allocate(table, vm.cpu.reg[9]);
-				if (newTable != table) {
-					table = newTable;
-				}else{
-					vm.cpu.reg[9] = -1;
-				}
-			}
-			if (vm.cpu.reg[8] == 4) {
-				Table newTable = memoryManager.getNewPage(table, vm.cpu.reg[9]);
-				if (newTable != table) {
-					table = newTable;
-				}
 			}
 		}
     }
@@ -683,7 +675,9 @@ public class Sistema {
 	public static Programas progs;
 	public MemoryManager memoryManager;
 	public ProcessManager processManager;
-	public Menu menu;
+	public Shell shell;
+	public Semaphore semaCPU;
+	public Semaphore semaSch;
 
     public Sistema(){   // a VM com tratamento de interrupções
 		 ih = new InterruptHandling();
@@ -692,14 +686,21 @@ public class Sistema {
 		 sysCall.setVM(vm);
 		 memoryManager = new MemoryManager(vm.mem);
 		 processManager = new ProcessManager();
-		 menu = new Menu();
 		 progs = new Programas();
+		 shell = new Shell();
+		 semaCPU = new Semaphore(1);
+		 semaSch = new Semaphore(1);
+	}
+
+	public void run(){
+		vm.cpu.run();
+		shell.run();
 	}
 
     // -------------------  S I S T E M A - fim --------------------------------------------------------------
     // -------------------------------------------------------------------------------------------------------
 	// -------------------  I N T E R F A C E - Menu --------------------------------------------------------------------
-	public class Menu{
+	public class Shell extends Thread{
 
 		public void run(){
 			boolean programRunning = true;
@@ -713,8 +714,6 @@ public class Sistema {
 				System.out.println("6. Executa um processo");
 				System.out.println("7. Liga/desliga trace");
 				System.out.println("8. Sair");
-				System.out.println("9. Shmalloc");
-				System.out.println("10. Shmref");
 				Scanner in = new Scanner(System.in);
 				int input = in.nextInt();
 				switch (input) {
@@ -835,22 +834,6 @@ public class Sistema {
 					case 8:
 						System.exit(0);
 
-					case 9:
-						System.out.println("Informe o id do processo");
-						chosenId = in.nextInt();
-						System.out.println("Informe a chave como um inteiro");
-						int key = in.nextInt();
-						shmalloc(chosenId, key);
-						break;
-
-					case 10:
-						System.out.println("Informe o id do processo");
-						chosenId = in.nextInt();
-						System.out.println("Informe a chave como um inteiro");
-						key = in.nextInt();
-						shmref(chosenId, key);
-						break;
-
 					default:
 						System.out.println("Opcao incorreta, tente novamente");
 						break;
@@ -946,40 +929,6 @@ public class Sistema {
 			System.exit(0);
 		}
 
-		public void shmalloc(int id, int key){
-			for (int i = 0; i < processManager.pcb.size(); i++) {
-				if (processManager.pcb.get(i).id == id) {										
-					processManager.pcb.get(i).table = memoryManager.getAvailableFrame(processManager.pcb.get(i).table, key);
-				} 
-			}
-			
-			System.out.println("ID nao encontrado");
-			
-		}
-
-		public void shmref(int id, int key){
-			for (int i = 0; i < processManager.pcb.size(); i++) {
-				if (processManager.pcb.get(i).id == id) {										
-					processManager.pcb.get(i).table = memoryManager.getNewPage(processManager.pcb.get(i).table, key);
-				}
-			}
-			System.out.println("ID nao encontrado");
-		}
-
-		public class Shell extends Thread{
-
-			public void run(){
-				Scanner scan = new Scanner(System.in);
-				int aux;
-				while(true){
-					aux = scan.nextInt();
-					
-				}
-
-			}
-
-		}
-
 		public class Console extends Thread{
 			private List<Integer> lista;
 
@@ -1005,7 +954,7 @@ public class Sistema {
     // ------------------- instancia e testa sistema
 	public static void main(String args[]) {
 		Sistema s = new Sistema();
-		s.menu.run();
+		s.run();
 		// s.processManager.createProcess(progs.progMinimo);
 		//s.processManager.createProcess(progs.fatorialTRAP);
 		//s.loadAndExec(progs.fibonacci10);

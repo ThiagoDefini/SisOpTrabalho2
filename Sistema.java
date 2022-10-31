@@ -95,7 +95,7 @@ public class Sistema {
 		private int timer;
 		private int delta;
 		boolean idle;
-						
+		
 		public CPU(Memory _mem, InterruptHandling _ih, SysCallHandling _sysCall, boolean _debug) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
 			maxInt =  32767;        // capacidade de representacao modelada
 			minInt = -32767;        // se exceder deve gerar interrupcao de overflow
@@ -407,19 +407,20 @@ public class Sistema {
 				System.out.println("                                               Interrupcao "+ irpt+ "   pc: "+pc);
 				switch (irpt) {
 					case intEnderecoInvalido:
-						System.exit(0);
+						processManager.deallocateProcess(processManager.ready.get(0).id);
+						semaSch.release();
 						break;
-
 					case intOverflow:
-						System.exit(0);
+						processManager.deallocateProcess(processManager.ready.get(0).id);
+						semaSch.release();
 						break;
-
 					case intInstrucaoInvalida:
-						System.exit(0);
+						processManager.deallocateProcess(processManager.ready.get(0).id);
+						semaSch.release();
 						break;
-
 					case intSTOP:
-						//System.exit(0);
+						processManager.deallocateProcess(processManager.ready.get(0).id);
+						semaSch.release();
 						break;
 
 					case timeOut:
@@ -433,7 +434,7 @@ public class Sistema {
 						break;
 				
 					default:
-						break;
+					break;
 				}
 			}
 	}
@@ -449,7 +450,9 @@ public class Sistema {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
+				if(!processManager.ready.isEmpty()){
+					vm.cpu.setContext(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+				}
 			}
 		}
 	}
@@ -463,10 +466,12 @@ public class Sistema {
         public void handle(Table table) {   // apenas avisa - todas interrupcoes neste momento finalizam o programa
             System.out.println("                                               Chamada de Sistema com op  /  par:  "+ vm.cpu.reg[8] + " / " + vm.cpu.reg[9]);
 			if (vm.cpu.reg[8] == 1) {
-				Scanner in = new Scanner(System.in);
-				int input = in.nextInt();
-				int position = vm.cpu.reg[9];
-				vm.mem.m[position].p = input;
+				// Scanner in = new Scanner(System.in);
+				// int input = in.nextInt();
+				// int position = vm.cpu.reg[9];
+				// vm.mem.m[position].p = input;
+				
+
 			}
 			if (vm.cpu.reg[8] == 2) {
 				System.out.println(vm.cpu.reg[9]);
@@ -591,11 +596,13 @@ public class Sistema {
 	public class ProcessManager{
 		private List<ProcessControlBlock> pcb;
 		private List<ProcessControlBlock> ready;
+		private List<ProcessControlBlock> blocked;
 		private int id;
 		
 		public ProcessManager(){
 			pcb = new ArrayList<>();
 			ready = new ArrayList<>();
+			blocked = new ArrayList<>();
 			id = 0;
 		}
 
@@ -950,26 +957,27 @@ public class Sistema {
 			System.exit(0);
 		}
 
-		public class Console extends Thread{
-			private List<Integer> lista;
+	}
+	// Console
+	public class Console extends Thread{
+		private List<Integer> lista;
+		//fila de pedidos do console
+		public Console(){
+			lista = new ArrayList<>();
+		}
 
-			public Console(){
-				lista = new ArrayList<>();
-			}
-
-			public void run(){
-				int aux = 0;
-				while(true){
-					if (aux != 1) {
-						//rotina de tratamento de da informação
-					}
-					
+		public void run(){
+			int aux = 0;
+			while(true){
+				if (aux != 1) {
+					//rotina de tratamento de da informação
 				}
+				
 			}
-
 		}
 
 	}
+	
     // -------------------------------------------------------------------------------------------------------
 	// -------------------------------------------------------------------------------------------------------
     // ------------------- instancia e testa sistema

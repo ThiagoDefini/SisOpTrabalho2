@@ -428,13 +428,30 @@ public class Sistema {
 						toSave.state.registers = reg;
 						processManager.ready.remove(0);
 						processManager.ready.add(toSave);
-						exec(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+						// exec(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+						semaSch.release();
 						break;
 				
 					default:
 						break;
 				}
 			}
+	}
+
+	// ------------------- E S C A L O N A D O R  - round-robin ----------------------
+
+	public class Scheduler extends Thread{
+		public void run(){
+			while (true) {
+				try {
+					semaSch.acquire();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+			}
+		}
 	}
 
     // ------------------- C H A M A D A S  D E  S I S T E M A  - rotinas de tratamento ----------------------
@@ -456,6 +473,7 @@ public class Sistema {
 			}
 		}
     }
+
 	// ------------------- G E R E N T E  D E  M E M O R I A  - paginação ----------------------
 	public class MemoryManager {
 		private int frameSize = 8; // number of instructions/words on a page
@@ -676,6 +694,7 @@ public class Sistema {
 	public MemoryManager memoryManager;
 	public ProcessManager processManager;
 	public Shell shell;
+	public Scheduler scheduler;
 	public Semaphore semaCPU;
 	public Semaphore semaSch;
 
@@ -688,13 +707,15 @@ public class Sistema {
 		 processManager = new ProcessManager();
 		 progs = new Programas();
 		 shell = new Shell();
+		 scheduler = new Scheduler();
 		 semaCPU = new Semaphore(1);
 		 semaSch = new Semaphore(1);
 	}
 
 	public void run(){
-		vm.cpu.run();
-		shell.run();
+		vm.cpu.start();
+		scheduler.start();
+		shell.start();
 	}
 
     // -------------------  S I S T E M A - fim --------------------------------------------------------------

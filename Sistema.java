@@ -474,8 +474,8 @@ public class Sistema {
         public void handle(Table table) {   // apenas avisa - todas interrupcoes neste momento finalizam o programa
             System.out.println("                                               Chamada de Sistema com op  /  par:  "+ vm.cpu.reg[8] + " / " + vm.cpu.reg[9]);
 			if (vm.cpu.reg[8] == 1) {
-				int position = vm.cpu.reg[9];
-				console.getInput(position);
+				int position = vm.cpu.reg[9]; // contem endereço onde salvar a informação
+				console.getInput(position); // requer para o console pedir uma entrada por parte do usuário
 				vm.cpu.irpt = Interrupts.intBlocked;
 				// int position = vm.cpu.reg[9];
 				// vm.mem.m[position].p = input;
@@ -741,7 +741,7 @@ public class Sistema {
     // -------------------------------------------------------------------------------------------------------
 	// -------------------  I N T E R F A C E - Menu --------------------------------------------------------------------
 	public class Shell extends Thread{
-
+		boolean canInput = false;
 		public void run(){
 			boolean programRunning = true;
 			while (programRunning) {
@@ -754,6 +754,9 @@ public class Sistema {
 				System.out.println("6. Executa um processo");
 				System.out.println("7. Liga/desliga trace");
 				System.out.println("8. Sair");
+				if (canInput) {
+					System.out.println("9. Fornecer um valor de entrada");
+				}
 				Scanner in = new Scanner(System.in);
 				int input = in.nextInt();
 				switch (input) {
@@ -833,7 +836,7 @@ public class Sistema {
 								break;
 
 							case 8:
-								break;
+								break;							
 							
 							default:
 							System.out.println("Opcao nao reconhecida");
@@ -873,6 +876,17 @@ public class Sistema {
 
 					case 8:
 						System.exit(0);
+
+					case 9:
+						if (canInput) {
+							System.out.println("Informe o valor de entrada");
+							int inputValue = in.nextInt();
+							console.order.get(0).saveInMemoryValue = inputValue;
+							canInput = false;
+						} else {
+							System.out.println("Nao ha nenhuma requisicao de entrada");
+						}
+						break;
 
 					default:
 						System.out.println("Opcao incorreta, tente novamente");
@@ -970,26 +984,37 @@ public class Sistema {
 		}
 
 	}
-	// Console
+	//----------------- C O N S O L E --------------------
 	public class Console extends Thread{
-		private List<Integer> lista;
-		//fila de pedidos do console
+		public List<Order> order;
+
 		public Console(){
-			lista = new ArrayList<>();
+			order = new ArrayList<>();
 		}
 
 		public void getInput(int position) {
-			//TODO
-			// vm.mem.m[position].p = input;
+			order.add(new Order(position));
+			shell.canInput = true;
+			
 		}
 
 		public void run(){
-			int aux = 0;
 			while(true){
-				if (aux != 1) {
-					//rotina de tratamento de da informação
+				if (order.size() > 0) {					
+					if (order.get(0).saveInMemoryValue != -1) {
+						vm.mem.m[order.get(0).memoryPosition].p = order.get(0).saveInMemoryValue;
+					}
 				}
-				
+			}
+		}
+
+		public class Order{
+			public int memoryPosition;
+			public int saveInMemoryValue;
+			
+			public Order(int memoryPos){
+				this.memoryPosition = memoryPos;
+				saveInMemoryValue = -1;
 			}
 		}
 

@@ -69,7 +69,7 @@ public class Sistema {
 	}
 
 	public enum Interrupts {               // possiveis interrupcoes que esta CPU gera
-		noInterrupt, intEnderecoInvalido, intInstrucaoInvalida, intOverflow, intSTOP, timeOut;
+		noInterrupt, intEnderecoInvalido, intInstrucaoInvalida, intOverflow, intSTOP, intTimeOut, intBlocked;
 	}
 
 	public class CPU extends Thread{
@@ -79,7 +79,7 @@ public class Sistema {
 		private int pc; 			// ... composto de program counter,
 		private Word ir; 			// instruction register,
 		private int[] reg;       	// registradores da CPU
-		private Interrupts irpt; 	// durante instrucao, interrupcao pode ser sinalizada
+		public Interrupts irpt; 	// durante instrucao, interrupcao pode ser sinalizada
 		private int base;   		// base e limite de acesso na memoria
 		private int limite; // por enquanto toda memoria pode ser acessada pelo processo rodando
 							// ATE AQUI: contexto da CPU - tudo que precisa sobre o estado de um processo para executa-lo
@@ -140,7 +140,6 @@ public class Sistema {
 				try {
 					semaCPU.acquire();
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 
@@ -350,7 +349,7 @@ public class Sistema {
 						}
 						timer++;
 						if (irpt != null && timer % delta == 0) {
-							irpt = Interrupts.timeOut;
+							irpt = Interrupts.intTimeOut;
 						}
 					   // --------------------------------------------------------------------------------------------------
 					   // VERIFICA INTERRUPÇÃO !!! - TERCEIRA FASE DO CICLO DE INSTRUÇÕES
@@ -423,13 +422,22 @@ public class Sistema {
 						semaSch.release();
 						break;
 
-					case timeOut:
+					case intTimeOut:
 						Sistema.ProcessManager.ProcessControlBlock toSave = processManager.ready.get(0);
 						toSave.state.pointer = pc;
 						toSave.state.registers = reg;
 						processManager.ready.remove(0);
 						processManager.ready.add(toSave);
 						// exec(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+						semaSch.release();
+						break;
+
+					case intBlocked:
+						Sistema.ProcessManager.ProcessControlBlock toBeSaved = processManager.ready.get(0);
+						toBeSaved.state.pointer = pc;
+						toBeSaved.state.registers = reg;
+						processManager.ready.remove(0);
+						processManager.blocked.add(toBeSaved);
 						semaSch.release();
 						break;
 				
@@ -447,11 +455,11 @@ public class Sistema {
 				try {
 					semaSch.acquire();
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				if(!processManager.ready.isEmpty()){
 					vm.cpu.setContext(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+					semaCPU.release();
 				}
 			}
 		}
@@ -466,8 +474,9 @@ public class Sistema {
         public void handle(Table table) {   // apenas avisa - todas interrupcoes neste momento finalizam o programa
             System.out.println("                                               Chamada de Sistema com op  /  par:  "+ vm.cpu.reg[8] + " / " + vm.cpu.reg[9]);
 			if (vm.cpu.reg[8] == 1) {
-				// Scanner in = new Scanner(System.in);
-				// int input = in.nextInt();
+				int position = vm.cpu.reg[9];
+				console.getInput(position);
+				vm.cpu.irpt = Interrupts.intBlocked;
 				// int position = vm.cpu.reg[9];
 				// vm.mem.m[position].p = input;
 				
@@ -702,6 +711,7 @@ public class Sistema {
 	public ProcessManager processManager;
 	public Shell shell;
 	public Scheduler scheduler;
+	public Console console;
 	public Semaphore semaCPU;
 	public Semaphore semaSch;
 
@@ -715,6 +725,7 @@ public class Sistema {
 		 progs = new Programas();
 		 shell = new Shell();
 		 scheduler = new Scheduler();
+		 console = new Console();
 		 semaCPU = new Semaphore(1);
 		 semaSch = new Semaphore(1);
 	}
@@ -723,6 +734,7 @@ public class Sistema {
 		vm.cpu.start();
 		scheduler.start();
 		shell.start();
+		console.start();
 	}
 
     // -------------------  S I S T E M A - fim --------------------------------------------------------------
@@ -964,6 +976,11 @@ public class Sistema {
 		//fila de pedidos do console
 		public Console(){
 			lista = new ArrayList<>();
+		}
+
+		public void getInput(int position) {
+			//TODO
+			// vm.mem.m[position].p = input;
 		}
 
 		public void run(){

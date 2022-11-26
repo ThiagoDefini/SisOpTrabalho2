@@ -69,7 +69,7 @@ public class Sistema {
 	}
 
 	public enum Interrupts {               // possiveis interrupcoes que esta CPU gera
-		noInterrupt, intEnderecoInvalido, intInstrucaoInvalida, intOverflow, intSTOP, intTimeOut, intBlocked;
+		noInterrupt, intEnderecoInvalido, intInstrucaoInvalida, intOverflow, intSTOP, intTimeOut, intBlocked, intIO;
 	}
 
 	public class CPU extends Thread{
@@ -108,6 +108,7 @@ public class Sistema {
 			timer = 0;
 			delta = 5;
 			idle = true;
+			irpt = Interrupts.noInterrupt;
 		}
 		
 		private boolean legal(int e) {                             // todo acesso a memoria tem que ser verificado
@@ -133,25 +134,27 @@ public class Sistema {
 			pc = _pc;                                              
 			irpt = Interrupts.noInterrupt;                         
 			table = _table;
+			System.out.println("set context completed");
 		}
 		
 		public void run() { 		// execucao da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado	
 			while (true) {
 				try {
 					semaCPU.acquire();
+					System.out.println("CPU says: I'm free!");
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-
-				if (!idle) {
-					while (true) { 			// ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
-					   // --------------------------------------------------------------------------------------------------
-					   // FETCH
+				
+				while (true) { 			// ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
+					// --------------------------------------------------------------------------------------------------
+					// FETCH
+					if (!idle) {
 						if (legal(pc)) { 	// pc valido
 							ir = m[memoryManager.getPhysicalAdress(pc, table)]; 	// <<<<<<<<<<<<           busca posicao da memoria apontada por pc, guarda em ir
 							if (debug) { System.out.print("                               pc: "+memoryManager.getPhysicalAdress(pc, table)+"       exec: ");  mem.dump(ir); }
-					   // --------------------------------------------------------------------------------------------------
-					   // EXECUTA INSTRUCAO NO ir
+						// --------------------------------------------------------------------------------------------------
+						// EXECUTA INSTRUCAO NO ir
 							switch (ir.opc) {   // conforme o opcode (código de operação) executa
 		
 							// Instrucoes de Busca e Armazenamento em Memoria
@@ -162,8 +165,8 @@ public class Sistema {
 		
 								case LDD: // Rd <= [A]
 									if (legal(ir.p)) {
-									   reg[ir.r1] = m[ir.p].p;
-									   pc++;
+										reg[ir.r1] = m[ir.p].p;
+										pc++;
 									} else {
 										irpt = Interrupts.intEnderecoInvalido;
 									}
@@ -256,7 +259,7 @@ public class Sistema {
 									break;
 			
 								case JMPILK: // If RC < 0 then PC <= k else PC++
-									 if (reg[ir.r2] < 0) {
+										if (reg[ir.r2] < 0) {
 										pc = ir.p;
 									} else {
 										pc++;
@@ -273,7 +276,7 @@ public class Sistema {
 			
 			
 								case JMPIL: // if Rc < 0 then PC <= Rs Else PC <= PC +1
-										 if (reg[ir.r2] < 0) {
+											if (reg[ir.r2] < 0) {
 											pc = reg[ir.r1];
 										} else {
 											pc++;
@@ -281,7 +284,7 @@ public class Sistema {
 									break;
 				
 								case JMPIE: // If Rc = 0 Then PC <= Rs Else PC <= PC +1
-										 if (reg[ir.r2] == 0) {
+											if (reg[ir.r2] == 0) {
 											pc = reg[ir.r1];
 										} else {
 											pc++;
@@ -289,24 +292,24 @@ public class Sistema {
 									break; 
 			
 								case JMPIM: // PC <= [A]
-										 pc = m[ir.p].p;
-									 break; 
+											pc = m[ir.p].p;
+										break; 
 			
 								case JMPIGM: // If RC > 0 then PC <= [A] else PC++
-										 if (reg[ir.r2] > 0) {
+											if (reg[ir.r2] > 0) {
 											pc = m[ir.p].p;
 										} else {
 											pc++;
 										}
-									 break;  
+										break;  
 			
 								case JMPILM: // If RC < 0 then PC <= k else PC++
-										 if (reg[ir.r2] < 0) {
+											if (reg[ir.r2] < 0) {
 											pc = m[ir.p].p;
 										} else {
 											pc++;
 										}
-									 break; 
+										break; 
 			
 								case JMPIEM: // If RC = 0 then PC <= k else PC++
 										if (reg[ir.r2] == 0) {
@@ -314,7 +317,7 @@ public class Sistema {
 										} else {
 											pc++;
 										}
-									 break; 
+										break; 
 			
 								case JMPIGT: // If RS>RC then PC <= k else PC++
 										if (reg[ir.r1] > reg[ir.r2]) {
@@ -322,7 +325,7 @@ public class Sistema {
 										} else {
 											pc++;
 										}
-									 break; 
+										break; 
 		
 							// outras
 								case STOP: // por enquanto, para execucao
@@ -335,9 +338,9 @@ public class Sistema {
 		
 							// Chamada de sistema
 								case TRAP:
-									 sysCall.handle(table);            // <<<<< aqui desvia para rotina de chamada de sistema, no momento so temos IO
-									 pc++;
-									 break;
+										sysCall.handle(table);            // <<<<< aqui desvia para rotina de chamada de sistema, no momento so temos IO
+										pc++;
+										break;
 		
 							// Inexistente
 								default:
@@ -351,16 +354,16 @@ public class Sistema {
 						if (irpt != null && timer % delta == 0) {
 							irpt = Interrupts.intTimeOut;
 						}
-					   // --------------------------------------------------------------------------------------------------
-					   // VERIFICA INTERRUPÇÃO !!! - TERCEIRA FASE DO CICLO DE INSTRUÇÕES
-						if (!(irpt == Interrupts.noInterrupt)) {   // existe interrupção
-							ih.handle(irpt,pc,reg);                       // desvia para rotina de tratamento
-							break; // break sai do loop da cpu
-						}
-					}  // FIM DO CICLO DE UMA INSTRUÇÃO
-				}
+					}
+					// --------------------------------------------------------------------------------------------------
+					// VERIFICA INTERRUPÇÃO !!! - TERCEIRA FASE DO CICLO DE INSTRUÇÕES
+					if (!(irpt == Interrupts.noInterrupt)) {   // existe interrupção
+						ih.handle(irpt,pc,reg);                       // desvia para rotina de tratamento
+						break; // break sai do loop da cpu
+					}
+				}  // FIM DO CICLO DE UMA INSTRUÇÃO
 				idle = true;
-				semaCPU.release();
+				System.out.println("CPU is idle now");
 			}		
 		}      
 	}
@@ -440,6 +443,11 @@ public class Sistema {
 						processManager.blocked.add(toBeSaved);
 						semaSch.release();
 						break;
+
+					case intIO:
+						processManager.ready.add(processManager.blocked.get(0));
+						processManager.blocked.remove(0);
+						break;
 				
 					default:
 					break;
@@ -459,6 +467,7 @@ public class Sistema {
 				}
 				if(!processManager.ready.isEmpty()){
 					vm.cpu.setContext(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
+					System.out.println("Scheduler says: Go CPU!");
 					semaCPU.release();
 				}
 			}
@@ -630,6 +639,10 @@ public class Sistema {
 			pcb.add(createdPcb);
 			loadProgram(processTable, program, memoryManager.memory.m);
 			ready.add(createdPcb);
+			if (vm.cpu.idle) {
+				System.out.println("Process created, CPU is idle: go scheduler!");
+				semaSch.release();
+			}
 			return true;
 		}
 
@@ -685,8 +698,6 @@ public class Sistema {
 				System.out.println("---------------------------------- programa carregado na memoria");			
 		vm.cpu.setContext(pointer, table);      // seta estado da cpu ]
 				System.out.println("---------------------------------- inicia execucao ");
-		vm.cpu.run();                                // cpu roda programa ate parar	
-				System.out.println("---------------------------------- memoria após execucao ");
 	}
 
 	// private void loadAndExec(Word[] p){
@@ -726,8 +737,8 @@ public class Sistema {
 		 shell = new Shell();
 		 scheduler = new Scheduler();
 		 console = new Console();
-		 semaCPU = new Semaphore(1);
-		 semaSch = new Semaphore(1);
+		 semaCPU = new Semaphore(0);
+		 semaSch = new Semaphore(0);
 	}
 
 	public void run(){
@@ -743,20 +754,19 @@ public class Sistema {
 	public class Shell extends Thread{
 		boolean canInput = false;
 		public void run(){
-			boolean programRunning = true;
-			while (programRunning) {
+			while (true) {
 				System.out.println("Escolha o numero abaixo:");
 				System.out.println("1. Lista processos");
 				System.out.println("2. Criar processo");
 				System.out.println("3. Dump de PCB e pagina");
-				System.out.println("4. Desaloca um processo");
-				System.out.println("5. Dump de memoria de um inicio ate um fim, um valor entre 0 e 1024");
-				System.out.println("6. Executa um processo");
-				System.out.println("7. Liga/desliga trace");
-				System.out.println("8. Sair");
+				System.out.println("4. Dump de memoria de um inicio ate um fim, um valor entre 0 e 1024");
+				System.out.println("5. Executa um processo");
+				System.out.println("6. Liga/desliga trace");
+				System.out.println("7. Sair");
 				if (canInput) {
-					System.out.println("9. Fornecer um valor de entrada");
+					System.out.println("8. Fornecer um valor de entrada");
 				}
+				System.out.println("9. Adicionar todos os programas");
 				Scanner in = new Scanner(System.in);
 				int input = in.nextInt();
 				switch (input) {
@@ -848,15 +858,9 @@ public class Sistema {
 						System.out.println("Informe o id do processo");
 						int chosenId = in.nextInt();
 						dump(chosenId);	
-						break;					
-
-					case 4:
-						System.out.println("Informe o id do processo");
-						chosenId = in.nextInt();
-						deallocate(chosenId);
 						break;
 
-					case 5:
+					case 4:
 						System.out.println("Informe o inicio da memoria");
 						int begin = in.nextInt();
 						System.out.println("Informe o fim da memoria");
@@ -864,20 +868,20 @@ public class Sistema {
 						dumpM(begin, end);
 						break;
 
-					case 6:
+					case 5:
 						System.out.println("Informe o id do processo");
 						chosenId = in.nextInt();
 						execute(chosenId);
 						break;
 
-					case 7:
+					case 6:
 						toggleTrace();
 						break;
 
-					case 8:
+					case 7:
 						System.exit(0);
 
-					case 9:
+					case 8:
 						if (canInput) {
 							System.out.println("Informe o valor de entrada");
 							int inputValue = in.nextInt();
@@ -887,6 +891,55 @@ public class Sistema {
 							System.out.println("Nao ha nenhuma requisicao de entrada");
 						}
 						break;
+
+					case 9:
+						if (processManager.createProcess(progs.fatorial)) {
+							System.out.println("Processo fatorial criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo fatorial");
+							break;
+						}
+					
+						if (processManager.createProcess(progs.progMinimo)) {
+							System.out.println("Processo progMinimo criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo progMinimo");
+							break;
+						}
+						if (processManager.createProcess(progs.fibonacci10)) {
+							System.out.println("Processo fibonacci10 criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo fibonacci10");
+							break;
+						}
+
+						if (processManager.createProcess(progs.fatorialTRAP)) {
+							System.out.println("Processo fatorialTRAP criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo fatorialTRAP");
+							break;
+						}
+
+						if (processManager.createProcess(progs.fibonacciTRAP)) {
+							System.out.println("Processo fibonacciTRAP criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo fibonacciTRAP");
+							break;
+						}
+
+						if (processManager.createProcess(progs.PB)) {
+							System.out.println("Processo PB criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo PB");
+							break;
+						}
+
+						if (processManager.createProcess(progs.PC)) {
+							System.out.println("Processo PC criado com sucesso");
+						}else{
+							System.out.println("Nao foi possivel criar o processo PC");
+							break;
+						}
 
 					default:
 						System.out.println("Opcao incorreta, tente novamente");
@@ -927,21 +980,6 @@ public class Sistema {
 			}
 		}
 
-		public void deallocate(int id){
-			for (int i = 0; i < processManager.pcb.size(); i++) {
-				if (processManager.pcb.get(i).id == id) {					
-					if(processManager.deallocateProcess(id)){
-						System.out.println("Processo de ID " + id + " desalocado");
-					}else{
-						System.out.println("Processo nao pode ser desalocado");
-					}
-
-				} else{
-					System.out.println("ID nao encontrado");
-				}
-			}
-		}
-
 		public void dumpM(int begin, int end){
 			if (begin < 0) {
 				System.out.println("O comeco nao pode ser menor que zero");
@@ -963,7 +1001,6 @@ public class Sistema {
 			for (int i = 0; i < processManager.pcb.size(); i++) {
 				if (processManager.pcb.get(i).id == id) {					
 					exec(0, processManager.pcb.get(i).table);
-					deallocate(id);
 				} else{
 					System.out.println("ID nao encontrado");
 				}
@@ -1003,6 +1040,10 @@ public class Sistema {
 				if (order.size() > 0) {					
 					if (order.get(0).saveInMemoryValue != -1) {
 						vm.mem.m[order.get(0).memoryPosition].p = order.get(0).saveInMemoryValue;
+						if (vm.cpu.irpt == Interrupts.noInterrupt) {
+							vm.cpu.irpt = Interrupts.intIO;
+							order.remove(0);
+						}
 					}
 				}
 			}

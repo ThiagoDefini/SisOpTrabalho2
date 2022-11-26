@@ -414,19 +414,27 @@ public class Sistema {
 				System.out.println("                                               Interrupcao "+ irpt+ "   pc: "+pc);
 				switch (irpt) {
 					case intEnderecoInvalido:
-						processManager.deallocateProcess(processManager.ready.get(0).id);
+						if(!processManager.ready.isEmpty()){
+							processManager.deallocateProcess(processManager.ready.get(0).id);
+						}
 						semaSch.release();
 						break;
 					case intOverflow:
-						processManager.deallocateProcess(processManager.ready.get(0).id);
+						if(!processManager.ready.isEmpty()){
+							processManager.deallocateProcess(processManager.ready.get(0).id);
+						}
 						semaSch.release();
 						break;
 					case intInstrucaoInvalida:
-						processManager.deallocateProcess(processManager.ready.get(0).id);
+						if(!processManager.ready.isEmpty()){
+							processManager.deallocateProcess(processManager.ready.get(0).id);
+						}
 						semaSch.release();
 						break;
 					case intSTOP:
-						processManager.deallocateProcess(processManager.ready.get(0).id);
+						if(!processManager.ready.isEmpty()){
+							processManager.deallocateProcess(processManager.ready.get(0).id);
+						}
 						// vm.cpu.timer = 0;
 						semaSch.release();
 						break;
@@ -470,11 +478,13 @@ public class Sistema {
 		public void run(){
 			while (true) {
 				try {
+					
 					semaSch.acquire();
+					System.out.println("");
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				if(!processManager.ready.isEmpty()){
+				if(!List.copyOf(processManager.ready).isEmpty()){
 					vm.cpu.setContext(processManager.ready.get(0).state.pointer, processManager.ready.get(0).table);
 					System.out.println("Scheduler says: Go CPU!");
 					semaCPU.release();

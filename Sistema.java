@@ -111,7 +111,10 @@ public class Sistema {
 			irpt = Interrupts.noInterrupt;
 		}
 		
-		private boolean legal(int e) {                             // todo acesso a memoria tem que ser verificado
+		private boolean legal(int e) { 
+			if (e < 0) {
+				return false;
+			}                            // todo acesso a memoria tem que ser verificado
 			for (int i = 0; i < table.page.length; i++) {
 				
 				if (memoryManager.getPhysicalAdress(e, table)/memoryManager.frameSize == table.page[i]) {
@@ -194,9 +197,6 @@ public class Sistema {
 									break;
 		
 								case STX: // [Rd] <= Rs
-									if (reg[ir.r1]== -9) {
-										System.out.println("here");
-									}
 									if (legal(reg[ir.r1])) {
 										m[reg[ir.r1]].opc = Opcode.DATA;      
 										m[reg[ir.r1]].p = reg[ir.r2];          
@@ -452,7 +452,7 @@ public class Sistema {
 						break;
 
 					case intIO:
-						System.out.println("blocked list size: " + processManager.blocked.size());
+						// System.out.println("blocked list size: " + processManager.blocked.size());
 						processManager.ready.add(processManager.blocked.get(0));
 						processManager.blocked.remove(0);
 						semaSch.release(); //is this needed?

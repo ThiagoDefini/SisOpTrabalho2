@@ -356,7 +356,7 @@ public class Sistema {
 							irpt = Interrupts.intEnderecoInvalido;
 						}
 						timer++;
-						if (irpt != null && timer % delta == 0) {
+						if (irpt == Interrupts.noInterrupt && timer % delta == 0) {
 							irpt = Interrupts.intTimeOut;
 						}
 					}
@@ -427,7 +427,7 @@ public class Sistema {
 						break;
 					case intSTOP:
 						processManager.deallocateProcess(processManager.ready.get(0).id);
-						vm.cpu.timer = 0;
+						// vm.cpu.timer = 0;
 						semaSch.release();
 						break;
 

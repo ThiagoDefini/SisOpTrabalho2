@@ -92,7 +92,7 @@ public class Sistema {
         private SysCallHandling sysCall;  // significa desvio para tratamento de chamadas de sistema - trap 
 		private boolean debug;            // se true entao mostra cada instrucao em execucao
 		private Table table;
-		private int timer;
+		public int timer;
 		private int delta;
 		boolean idle;
 		
@@ -113,6 +113,7 @@ public class Sistema {
 		
 		private boolean legal(int e) {                             // todo acesso a memoria tem que ser verificado
 			for (int i = 0; i < table.page.length; i++) {
+				
 				if (memoryManager.getPhysicalAdress(e, table)/memoryManager.frameSize == table.page[i]) {
 					return true;
 				}
@@ -193,6 +194,9 @@ public class Sistema {
 									break;
 		
 								case STX: // [Rd] <= Rs
+									if (reg[ir.r1]== -9) {
+										System.out.println("here");
+									}
 									if (legal(reg[ir.r1])) {
 										m[reg[ir.r1]].opc = Opcode.DATA;      
 										m[reg[ir.r1]].p = reg[ir.r2];          
@@ -423,6 +427,7 @@ public class Sistema {
 						break;
 					case intSTOP:
 						processManager.deallocateProcess(processManager.ready.get(0).id);
+						vm.cpu.timer = 0;
 						semaSch.release();
 						break;
 
@@ -760,6 +765,7 @@ public class Sistema {
 		public void run(){
 			while (true) {
 				System.out.println("Escolha o numero abaixo:");
+				System.out.println("0. Recarregar menu");
 				System.out.println("1. Lista processos");
 				System.out.println("2. Criar processo");
 				System.out.println("3. Dump de PCB e pagina");
@@ -793,6 +799,8 @@ public class Sistema {
 						System.out.println("8. Voltar");
 						int chosenProgram = in.nextInt();
 						switch (chosenProgram) {
+							case 0:
+								break;
 							case 1:
 								if (processManager.createProcess(progs.fatorial)) {
 									System.out.println("Processo criado com sucesso");
@@ -1044,7 +1052,7 @@ public class Sistema {
 				if (!List.copyOf(order).isEmpty()) {	
 					// System.out.println("There are orders!");
 					if (order.get(0).saveInMemoryValue != -1) {
-						System.out.println("Order says: I've got a value!");
+						// System.out.println("Order says: I've got a value!");
 						vm.mem.m[order.get(0).memoryPosition].p = order.get(0).saveInMemoryValue;
 						if (vm.cpu.irpt == Interrupts.noInterrupt) {
 							vm.cpu.irpt = Interrupts.intIO;

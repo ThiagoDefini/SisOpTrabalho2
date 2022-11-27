@@ -907,7 +907,9 @@ public class Sistema {
 							System.out.println("Informe o valor de entrada");
 							int inputValue = in.nextInt();
 							console.order.get(0).saveInMemoryValue = inputValue;
-							canInput = false;
+							if (console.order.size() > 0) {
+								canInput = false;
+							}
 						} else {
 							System.out.println("Nao ha nenhuma requisicao de entrada");
 						}
@@ -1063,6 +1065,7 @@ public class Sistema {
 					if (List.copyOf(order).get(0).saveInMemoryValue != -1) {
 						System.out.println("Order says: I've got a value!");
 						vm.mem.m[List.copyOf(order).get(0).memoryPosition].p = List.copyOf(order).get(0).saveInMemoryValue;
+						System.out.println(vm.cpu.irpt.name());
 						if (vm.cpu.irpt == Interrupts.noInterrupt) {
 							vm.cpu.irpt = Interrupts.intIO;
 							order.remove(0);

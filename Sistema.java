@@ -367,6 +367,7 @@ public class Sistema {
 						break; // break sai do loop da cpu
 					}
 				}  // FIM DO CICLO DE UMA INSTRUÇÃO
+				irpt = Interrupts.noInterrupt;
 				idle = true;
 				System.out.println("CPU is idle now");
 			}		
@@ -460,10 +461,9 @@ public class Sistema {
 						break;
 
 					case intIO:
-						// System.out.println("blocked list size: " + processManager.blocked.size());
 						processManager.ready.add(processManager.blocked.get(0));
 						processManager.blocked.remove(0);
-						semaSch.release(); //is this needed?
+						semaSch.release(); 
 						break;
 				
 					default:
@@ -477,8 +477,7 @@ public class Sistema {
 	public class Scheduler extends Thread{
 		public void run(){
 			while (true) {
-				try {
-					
+				try {					
 					semaSch.acquire();
 					System.out.println("");
 				} catch (InterruptedException e) {
@@ -1061,13 +1060,13 @@ public class Sistema {
 			while(true){
 				if (!List.copyOf(order).isEmpty()) {	
 					// System.out.println("There are orders!");
-					if (order.get(0).saveInMemoryValue != -1) {
-						// System.out.println("Order says: I've got a value!");
-						vm.mem.m[order.get(0).memoryPosition].p = order.get(0).saveInMemoryValue;
+					if (List.copyOf(order).get(0).saveInMemoryValue != -1) {
+						System.out.println("Order says: I've got a value!");
+						vm.mem.m[List.copyOf(order).get(0).memoryPosition].p = List.copyOf(order).get(0).saveInMemoryValue;
 						if (vm.cpu.irpt == Interrupts.noInterrupt) {
 							vm.cpu.irpt = Interrupts.intIO;
 							order.remove(0);
-							semaCPU.release(); // is this necessary?
+							semaCPU.release();
 						}
 					}
 				}

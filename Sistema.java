@@ -963,7 +963,9 @@ public class Sistema {
 							System.out.println("Nao foi possivel criar o processo PC");
 							break;
 						}
+					case 0:
 
+					break;
 					default:
 						System.out.println("Opcao incorreta, tente novamente");
 						break;
